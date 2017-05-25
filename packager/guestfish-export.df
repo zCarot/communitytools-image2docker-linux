@@ -6,4 +6,4 @@ LABEL com.docker.v2c.component=packager \
 COPY ./guestfish-export/script.sh /script.sh
 VOLUME ["/v2c"]
 ENTRYPOINT ["/bin/sh"]
-CMD ["-c", "/script.sh"]
+CMD ["-c", "/script.sh /dev/sda1"]

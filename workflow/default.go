@@ -23,7 +23,7 @@ type provisionerResponse struct {
 	Tarball     *bytes.Buffer
 }
 
-func Build(ctx context.Context, target string, noclean bool) (string, error) {
+func Build(ctx context.Context, target string, noclean bool, device string) (string, error) {
 	if empty, err := isCWDEmpty(); !empty || err != nil {
 		if err != nil {
 			return ``, fmt.Errorf("Unable to determine if the current working directory is empty.")
@@ -56,7 +56,7 @@ func Build(ctx context.Context, target string, noclean bool) (string, error) {
 		}
 		packager := choosePackager(components)
 
-		pc, err = system.LaunchPackager(ctx, packager, target)
+		pc, err = system.LaunchPackager(ctx, packager, target, device)
 		if err != nil {
 			return ``, err
 		}

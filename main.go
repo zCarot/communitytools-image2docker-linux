@@ -43,6 +43,10 @@ func newApp() *cli.App {
 					Name:  `tag, t`,
 					Usage: "Tag the resulting image with `REPOSITORY[:TAG]`",
 				},
+				cli.StringFlag{
+					Name:  `device, d`,
+					Usage: "Disk device (/dev/sda1 as default, for ubuntu LVM use /dev/ubuntu-vg/root)",
+				},
 				cli.StringSliceFlag{
 					Name: `label, l`,
 				},
@@ -161,7 +165,11 @@ func buildHandler(c *cli.Context) error {
 		fmt.Println(`Unpacked input will not be cleaned up upon completion.`)
 	}
 
-	_, err = workflow.Build(ctx, abs, c.Bool(`no-cleanup`))
+	if c.String(`device`) != `` {
+		fmt.Println(fmt.Sprintf(`Use own device mapping: %s`, c.String(`device`)))
+	}
+
+	_, err = workflow.Build(ctx, abs, c.Bool(`no-cleanup`), c.String(`device`))
 	return err
 }
 

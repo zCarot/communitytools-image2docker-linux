@@ -129,7 +129,7 @@ func RemoveProducts(is []string, f bool, p bool) ([]types.ImageDelete, error) {
 
 var volname = `v2c-transport`
 
-func LaunchPackager(ctx context.Context, p api.Packager, input string) (string, error) {
+func LaunchPackager(ctx context.Context, p api.Packager, input string, device string) (string, error) {
 	client, err := docker.NewEnvClient()
 	if err != nil {
 		return ``, err
@@ -147,11 +147,19 @@ func LaunchPackager(ctx context.Context, p api.Packager, input string) (string, 
 		}
 	}
 
+	if device == `` {
+		device = `/dev/sda1`
+	}
+
 	fmt.Printf("Creating container for %v:%v\n", p.Repository, p.Tag)
 	// Create
 	createResult, err := client.ContainerCreate(gcontext.Background(),
 		&container.Config{
 			Image: fmt.Sprintf(`%v:%v`, p.Repository, p.Tag),
+			Cmd: []string{
+				`-c`,
+				fmt.Sprintf(`/script.sh %s`, device),
+			},
 		},
 		&container.HostConfig{
 			NetworkMode: `none`,
