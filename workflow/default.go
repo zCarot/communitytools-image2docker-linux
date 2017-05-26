@@ -23,7 +23,7 @@ type provisionerResponse struct {
 	Tarball     *bytes.Buffer
 }
 
-func Build(ctx context.Context, target string, noclean bool, device string) (string, error) {
+func Build(ctx context.Context, target string, noclean bool, device string, onebyone bool) (string, error) {
 	if empty, err := isCWDEmpty(); !empty || err != nil {
 		if err != nil {
 			return ``, fmt.Errorf("Unable to determine if the current working directory is empty.")
@@ -55,7 +55,6 @@ func Build(ctx context.Context, target string, noclean bool, device string) (str
 			return ``, errors.New(`no installed packagers`)
 		}
 		packager := choosePackager(components)
-
 		pc, err = system.LaunchPackager(ctx, packager, target, device)
 		if err != nil {
 			return ``, err
@@ -74,15 +73,29 @@ func Build(ctx context.Context, target string, noclean bool, device string) (str
 
 	// Launch Detectives
 	dr := make(chan detectiveResponse)
+	detected := []detectiveResponse{}
+
 	for _, d := range components.Detectives {
 		go launchDetective(ctx, d, dr)
+
+		if onebyone {
+			select {
+				case <-ctx.Done():
+					return ``, errors.New(`Task cancelled or late.`)
+				case r := <-dr:
+					if r.Tarball != nil {
+						detected = append(detected, r)
+					}
+			}
+		}
 	}
 
-	// Collect Detective responses
-	detected := []detectiveResponse{}
-	collectDetectiveResponses(ctx, len(components.Detectives), dr, &detected)
-
 	pCount := len(detected)
+
+	if !onebyone {
+		// Collect Detective responses
+		collectDetectiveResponses(ctx, len(components.Detectives), dr, &detected)
+	}
 
 	// Shutdown the Packager
 	if len(pc) > 0 {
@@ -99,14 +112,35 @@ func Build(ctx context.Context, target string, noclean bool, device string) (str
 
 	// Launch Provisioners
 	prc := make(chan provisionerResponse)
-	err = launchProvisioners(ctx, components, prc, &detected)
-	if err != nil {
-		return ``, err
-	}
-
-	// Collect provisioned build contexts
 	results := map[string][]provisionerResponse{}
-	collectProvisionerResponses(ctx, pCount, prc, results)
+
+	if onebyone {
+		for _, r := range detected {
+			var p api.Provisioner
+			for _, p = range components.Provisioners {
+				if s := fmt.Sprintf("%v:%v", p.Repository, p.Tag); s == r.Next {
+					break
+				}
+			}
+
+			go launchProvisioner(ctx, p, r.Tarball, prc)
+
+			select {
+				case <-ctx.Done():
+					return ``, errors.New(`Task cancelled or late.`)
+				case pr := <-prc:
+					results[pr.Category] = append(results[pr.Category], pr)
+			}
+		}
+	} else {
+		err = launchProvisioners(ctx, components, prc, &detected)
+		if err != nil {
+			return ``, err
+		}
+
+		// Collect provisioned build contexts
+		collectProvisionerResponses(ctx, pCount, prc, results)
+	}
 
 	// We can cache at this point and prompt for conflict resolution if required.
 	// At this point we have a fully analyzed image and proposals for provisioning.

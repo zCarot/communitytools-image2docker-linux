@@ -54,6 +54,10 @@ func newApp() *cli.App {
 					Name:  `no-cleanup, n`,
 					Usage: `Do no delete unpacked disk`,
 				},
+				cli.BoolFlag{
+					Name:  `one-by-one, o`,
+					Usage: `Call detectives and provisioners one by one`,
+				},
 			},
 			Action: buildHandler,
 		},
@@ -169,7 +173,11 @@ func buildHandler(c *cli.Context) error {
 		fmt.Println(fmt.Sprintf(`Use own device mapping: %s`, c.String(`device`)))
 	}
 
-	_, err = workflow.Build(ctx, abs, c.Bool(`no-cleanup`), c.String(`device`))
+	if c.Bool(`one-by-one`) {
+		fmt.Println(`Detectives and provisioners will work one by one.`)
+	}
+
+	_, err = workflow.Build(ctx, abs, c.Bool(`no-cleanup`), c.String(`device`), c.Bool(`one-by-one`))
 	return err
 }
 
